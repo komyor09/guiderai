@@ -38,7 +38,6 @@ def search(
         .join(AdmissionPlanLanguage, AdmissionPlanLanguage.admission_plan_id == AdmissionPlan.id)
         .join(Language, Language.id == AdmissionPlanLanguage.language_id)
     )
-
     if language:
         q = q.filter(Language.name.ilike(f"%{language}%"))
 
@@ -54,4 +53,5 @@ def search(
     if specialty:
         q = q.filter(Specialty.name.ilike(f"%{specialty}%"))
 
-    return q.limit(20).all()
+    results = q.limit(20).all()
+    return [dict(row._mapping) for row in results]
