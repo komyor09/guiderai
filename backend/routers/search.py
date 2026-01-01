@@ -26,18 +26,16 @@ def get_db():
 
 @router.get("/")
 def search(
-    language: str | None = Query(None, description="Язык обучения"),
-    budget: bool | None = Query(None, description="Бюджет или платно"),
-    region: str | None = Query(None, description="Регион (область/город)"),
-    specialty: str | None = Query(None, description="Название специальности"),
+    language: str | None = Query(None),
+    specialty: str | None = Query(None),
+    budget: bool | None = Query(None),
+
+    region_id: int | None = Query(None),
+    district_id: int | None = Query(None),
+    locality_id: int | None = Query(None),
+
     db: Session = Depends(get_db),
 ):
-    """
-    Основной поиск специальностей.
-    Работает через нормализованную географию:
-    regions → districts → localities → institutions
-    """
-
     query = (
         db.query(
             Institution.name.label("institution"),
@@ -48,15 +46,10 @@ def search(
             AdmissionPlan.plan_count,
         )
         .select_from(AdmissionPlan)
-        # --- Учебные данные ---
         .join(Institution, Institution.id == AdmissionPlan.institution_id)
         .join(Specialty, Specialty.id == AdmissionPlan.specialty_id)
-        .join(
-            AdmissionPlanLanguage,
-            AdmissionPlanLanguage.admission_plan_id == AdmissionPlan.id,
-        )
+        .join(AdmissionPlanLanguage, AdmissionPlanLanguage.admission_plan_id == AdmissionPlan.id)
         .join(Language, Language.id == AdmissionPlanLanguage.language_id)
-        # --- География ---
         .join(Locality, Locality.id == Institution.locality_id)
         .join(District, District.id == Locality.district_id)
         .join(Region, Region.id == District.region_id)
@@ -67,6 +60,9 @@ def search(
     if language:
         query = query.filter(Language.name.ilike(f"%{language}%"))
 
+    if specialty:
+        query = query.filter(Specialty.name.ilike(f"%{specialty}%"))
+
     if budget is not None:
         query = query.filter(
             AdmissionPlan.price.is_(None)
@@ -74,14 +70,13 @@ def search(
             else AdmissionPlan.price.isnot(None)
         )
 
-    if region:
-        query = query.filter(Region.name.ilike(f"%{region}%"))
-
-    if specialty:
-        query = query.filter(Specialty.name.ilike(f"%{specialty}%"))
-
-    # ---------- РЕЗУЛЬТАТ ----------
+    # География (ПО ID, ВАЖНО!)
+    if locality_id:
+        query = query.filter(Locality.id == locality_id)
+    elif district_id:
+        query = query.filter(District.id == district_id)
+    elif region_id:
+        query = query.filter(Region.id == region_id)
 
     results = query.limit(20).all()
-
-    return [dict(row._mapping) for row in results]
+    return [dict(r._mapping) for r in results]
