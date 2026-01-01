@@ -34,8 +34,19 @@ def search(
     district_id: int | None = Query(None),
     locality_id: int | None = Query(None),
 
+    sort: str | None = Query(
+        None, description="price | plan_count | institution"
+    ),
+    order: str = Query(
+        "desc", description="asc | desc"
+    ),
+    limit: int = Query(
+        20, ge=1, le=100
+    ),
+
     db: Session = Depends(get_db),
 ):
+
     query = (
         db.query(
             Institution.name.label("institution"),
@@ -77,6 +88,25 @@ def search(
         query = query.filter(District.id == district_id)
     elif region_id:
         query = query.filter(Region.id == region_id)
+
+        # ---------- СОРТИРОВКА ----------
+
+    if sort == "price":
+        column = AdmissionPlan.price
+    elif sort == "plan_count":
+        column = AdmissionPlan.plan_count
+    elif sort == "institution":
+        column = Institution.name
+    else:
+        column = None
+
+    if column is not None:
+        query = query.order_by(
+            column.asc() if order == "asc" else column.desc()
+        )
+
+    results = query.limit(limit).all()
+    return [dict(r._mapping) for r in results]
 
     results = query.limit(20).all()
     return [dict(r._mapping) for r in results]
