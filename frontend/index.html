@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>GuideRAI</title>
+  <title>GuideRAI — подбор специальностей</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Font Awesome -->
@@ -16,14 +16,141 @@
 
   <!-- Navbar -->
   <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-    <span class="navbar-brand">GuideRAI</span>
+    <span class="navbar-brand font-weight-bold">GuideRAI</span>
   </nav>
 
   <!-- Content -->
   <div class="content-wrapper">
     <section class="content pt-3">
       <div class="container-fluid" id="app">
-        <!-- тут будет форма и таблица -->
+
+        <!-- FILTERS -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i class="fas fa-search mr-1"></i>
+              Подбор специальности
+            </h3>
+          </div>
+
+          <div class="card-body">
+            <div class="row">
+
+              <div class="col-md-3">
+                <label>Язык обучения</label>
+                <input id="language" class="form-control" placeholder="Русский">
+              </div>
+
+              <div class="col-md-3">
+                <label>Направление</label>
+                <input id="specialty" class="form-control" placeholder="Информатика">
+              </div>
+
+              <div class="col-md-4">
+                <label>Регион</label>
+                <select id="region_id" class="form-control">
+                  <option value="">Выберите регион</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label>Район</label>
+                <select id="district_id" class="form-control" disabled>
+                  <option value="">Сначала выберите регион</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label>Город / населённый пункт</label>
+                <select id="locality_id" class="form-control" disabled>
+                  <option value="">Сначала выберите район</option>
+                </select>
+              </div>
+
+              <div class="col-md-3">
+                <label>Тип обучения</label>
+                <select id="budget" class="form-control">
+                  <option value="">Любой</option>
+                  <option value="true">Бюджет</option>
+                  <option value="false">Платно</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label>Сортировка</label>
+                <select id="sort" class="form-control">
+                  <option value="">По умолчанию</option>
+                  <option value="plan_count">По количеству мест</option>
+                  <option value="price">По цене</option>
+                  <option value="institution">По названию ВУЗа</option>
+                </select>
+              </div>
+
+              <div class="col-md-3">
+                <label>Порядок</label>
+                <select id="order" class="form-control">
+                  <option value="desc">По убыванию</option>
+                  <option value="asc">По возрастанию</option>
+                </select>
+              </div>
+
+            </div>
+
+            <div class="mt-3">
+              <button class="btn btn-primary" onclick="search()">
+                <i class="fas fa-filter mr-1"></i>
+                Подобрать
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RESULTS -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i class="fas fa-list mr-1"></i>
+              Результаты
+            </h3>
+          </div>
+
+          <div class="card-body p-0">
+            <table class="table table-striped mb-0">
+              <thead>
+                <tr>
+                  <th style="width:50px">№</th>
+                  <th>ВУЗ</th>
+                  <th>Регион</th>
+                  <th>Специальность</th>
+                  <th>Язык</th>
+                  <th>Цена</th>
+                  <th>Места</th>
+                </tr>
+              </thead>
+              <tbody id="results">
+                <tr>
+                  <td colspan="6" class="text-center text-muted">
+                    Задайте параметры поиска
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="d-flex justify-content-between align-items-center p-2">
+              <button class="btn btn-sm btn-secondary" id="prevPage" disabled>
+                ← Назад
+              </button>
+
+              <span id="pageInfo" class="text-muted">
+                Страница 1
+              </span>
+
+              <button class="btn btn-sm btn-secondary" id="nextPage" disabled>
+                Вперёд →
+              </button>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </section>
   </div>
@@ -40,6 +167,191 @@
 <script src="adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE -->
 <script src="adminlte/dist/js/adminlte.min.js"></script>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+
+/* ---------- PAGINATION STATE ---------- */
+let allResults = [];
+let currentPage = 1;
+const pageSize = 10;
+
+/* ---------- INIT ---------- */
+$(document).ready(() => {
+  loadRegions();
+});
+
+/* ---------- META LOADERS ---------- */
+
+async function loadRegions() {
+  const res = await fetch(`${API}/meta/regions`);
+  const data = await res.json();
+
+  const region = $('#region_id');
+  region.html('<option value="">Выберите регион</option>');
+
+  data.forEach(r => {
+    region.append(`<option value="${r.id}">${r.name}</option>`);
+  });
+}
+
+$('#region_id').on('change', async function () {
+  const regionId = $(this).val();
+
+  const district = $('#district_id');
+  const locality = $('#locality_id');
+
+  district.prop('disabled', true).html('<option>Загрузка...</option>');
+  locality.prop('disabled', true).html('<option>Сначала выберите район</option>');
+
+  if (!regionId) return;
+
+  const res = await fetch(`${API}/meta/districts?region_id=${regionId}`);
+  const data = await res.json();
+
+  district.html('<option value="">Выберите район</option>');
+  data.forEach(d => {
+    district.append(`<option value="${d.id}">${d.name}</option>`);
+  });
+
+  district.prop('disabled', false);
+});
+
+$('#district_id').on('change', async function () {
+  const districtId = $(this).val();
+  const locality = $('#locality_id');
+
+  locality.prop('disabled', true).html('<option>Загрузка...</option>');
+
+  if (!districtId) return;
+
+  const res = await fetch(`${API}/meta/localities?district_id=${districtId}`);
+  const data = await res.json();
+
+  locality.html('<option value="">Выберите населённый пункт</option>');
+  data.forEach(l => {
+    locality.append(`<option value="${l.id}">${l.name}</option>`);
+  });
+
+  locality.prop('disabled', false);
+});
+
+/* ---------- SEARCH ---------- */
+
+async function search() {
+  const params = new URLSearchParams();
+
+  const language = $('#language').val().trim();
+  const specialty = $('#specialty').val().trim();
+  const regionId = $('#region_id').val();
+  const districtId = $('#district_id').val();
+  const localityId = $('#locality_id').val();
+  const budget = $('#budget').val();
+  const sort = $('#sort').val();
+  const order = $('#order').val();
+
+  if (sort) params.append('sort', sort);
+  if (order) params.append('order', order);
+  if (language) params.append('language', language);
+  if (specialty) params.append('specialty', specialty);
+  if (regionId) params.append('region_id', regionId);
+  if (districtId) params.append('district_id', districtId);
+  if (localityId) params.append('locality_id', localityId);
+  if (budget) params.append('budget', budget);
+
+  $('#results').html(`
+    <tr>
+      <td colspan="7" class="text-center">
+        <i class="fas fa-spinner fa-spin mr-1"></i> Поиск...
+      </td>
+    </tr>
+  `);
+
+  try {
+    const res = await fetch(`${API}/search/?${params.toString()}`);
+    const data = await res.json();
+
+    allResults = data;
+    currentPage = 1;
+    renderTable();
+
+  } catch (e) {
+    $('#results').html(`
+      <tr>
+        <td colspan="7" class="text-center text-danger">
+          Ошибка загрузки данных
+        </td>
+      </tr>
+    `);
+  }
+}
+
+/* ---------- TABLE RENDER ---------- */
+
+function renderTable() {
+  const tbody = $('#results');
+  tbody.empty();
+
+  if (!allResults.length) {
+    tbody.append(`
+      <tr>
+        <td colspan="7" class="text-center text-muted">
+          Ничего не найдено
+        </td>
+      </tr>
+    `);
+    updatePagination();
+    return;
+  }
+
+  const start = (currentPage - 1) * pageSize;
+  const end = start + pageSize;
+  const pageItems = allResults.slice(start, end);
+
+  pageItems.forEach((row, index) => {
+    const rowNumber = start + index + 1;
+
+    tbody.append(`
+      <tr>
+        <td class="text-muted">${rowNumber}</td>
+        <td>${row.institution}</td>
+        <td>${row.region || ''}</td>
+        <td>${row.specialty}</td>
+        <td>${row.language}</td>
+        <td>${row.price === null ? 'Бюджет' : row.price}</td>
+        <td>${row.plan_count}</td>
+      </tr>
+    `);
+  });
+
+  updatePagination();
+}
+
+/* ---------- PAGINATION ---------- */
+
+function updatePagination() {
+  const totalPages = Math.ceil(allResults.length / pageSize) || 1;
+
+  $('#pageInfo').text(`Страница ${currentPage} из ${totalPages}`);
+  $('#prevPage').prop('disabled', currentPage <= 1);
+  $('#nextPage').prop('disabled', currentPage >= totalPages);
+}
+
+$('#prevPage').on('click', () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderTable();
+  }
+});
+
+$('#nextPage').on('click', () => {
+  const totalPages = Math.ceil(allResults.length / pageSize);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderTable();
+  }
+});
+</script>
 
 </body>
 </html>
