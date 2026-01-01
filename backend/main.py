@@ -1,11 +1,18 @@
 from fastapi import FastAPI
 from routers import test_db, search
+from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI(title="GuiderAI")
 
 app.include_router(test_db.router)
 app.include_router(search.router)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
