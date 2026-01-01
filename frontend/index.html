@@ -10,6 +10,18 @@
   <!-- AdminLTE -->
   <link rel="stylesheet" href="adminlte/dist/css/adminlte.min.css">
 </head>
+<style>
+.ai-message {
+  background: #f4f6f9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.ai-option {
+  margin: 5px 5px 0 0;
+}
+</style>
 
 <body class="hold-transition sidebar-mini">
 <div class="wrapper">
@@ -147,7 +159,22 @@
                 Вперёд →
               </button>
             </div>
+          </div>
 
+        </div>
+
+        <div class="card mt-3" id="ai-dialog-card" style="display:none;">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i class="fas fa-robot mr-1"></i>
+              Консультант
+            </h3>
+          </div>
+
+          <div class="card-body">
+            <div id="ai-messages" class="mb-3"></div>
+
+            <div id="ai-options" class="d-flex flex-wrap gap-2"></div>
           </div>
         </div>
 
@@ -169,188 +196,270 @@
 <script src="adminlte/dist/js/adminlte.min.js"></script>
 
 <script>
-const API = 'http://127.0.0.1:8000';
+  const API = 'http://127.0.0.1:8000';
 
-/* ---------- PAGINATION STATE ---------- */
-let allResults = [];
-let currentPage = 1;
-const pageSize = 10;
+  /* ---------- PAGINATION STATE ---------- */
+  let allResults = [];
+  let currentPage = 1;
+  const pageSize = 10;
 
-/* ---------- INIT ---------- */
-$(document).ready(() => {
-  loadRegions();
-});
-
-/* ---------- META LOADERS ---------- */
-
-async function loadRegions() {
-  const res = await fetch(`${API}/meta/regions`);
-  const data = await res.json();
-
-  const region = $('#region_id');
-  region.html('<option value="">Выберите регион</option>');
-
-  data.forEach(r => {
-    region.append(`<option value="${r.id}">${r.name}</option>`);
-  });
-}
-
-$('#region_id').on('change', async function () {
-  const regionId = $(this).val();
-
-  const district = $('#district_id');
-  const locality = $('#locality_id');
-
-  district.prop('disabled', true).html('<option>Загрузка...</option>');
-  locality.prop('disabled', true).html('<option>Сначала выберите район</option>');
-
-  if (!regionId) return;
-
-  const res = await fetch(`${API}/meta/districts?region_id=${regionId}`);
-  const data = await res.json();
-
-  district.html('<option value="">Выберите район</option>');
-  data.forEach(d => {
-    district.append(`<option value="${d.id}">${d.name}</option>`);
+  /* ---------- INIT ---------- */
+  $(document).ready(() => {
+    loadRegions();
   });
 
-  district.prop('disabled', false);
-});
+  /* ---------- META LOADERS ---------- */
 
-$('#district_id').on('change', async function () {
-  const districtId = $(this).val();
-  const locality = $('#locality_id');
-
-  locality.prop('disabled', true).html('<option>Загрузка...</option>');
-
-  if (!districtId) return;
-
-  const res = await fetch(`${API}/meta/localities?district_id=${districtId}`);
-  const data = await res.json();
-
-  locality.html('<option value="">Выберите населённый пункт</option>');
-  data.forEach(l => {
-    locality.append(`<option value="${l.id}">${l.name}</option>`);
-  });
-
-  locality.prop('disabled', false);
-});
-
-/* ---------- SEARCH ---------- */
-
-async function search() {
-  const params = new URLSearchParams();
-
-  const language = $('#language').val().trim();
-  const specialty = $('#specialty').val().trim();
-  const regionId = $('#region_id').val();
-  const districtId = $('#district_id').val();
-  const localityId = $('#locality_id').val();
-  const budget = $('#budget').val();
-  const sort = $('#sort').val();
-  const order = $('#order').val();
-
-  if (sort) params.append('sort', sort);
-  if (order) params.append('order', order);
-  if (language) params.append('language', language);
-  if (specialty) params.append('specialty', specialty);
-  if (regionId) params.append('region_id', regionId);
-  if (districtId) params.append('district_id', districtId);
-  if (localityId) params.append('locality_id', localityId);
-  if (budget) params.append('budget', budget);
-
-  $('#results').html(`
-    <tr>
-      <td colspan="7" class="text-center">
-        <i class="fas fa-spinner fa-spin mr-1"></i> Поиск...
-      </td>
-    </tr>
-  `);
-
-  try {
-    const res = await fetch(`${API}/search/?${params.toString()}`);
+  async function loadRegions() {
+    const res = await fetch(`${API}/meta/regions`);
     const data = await res.json();
 
-    allResults = data;
-    currentPage = 1;
-    renderTable();
+    const region = $('#region_id');
+    region.html('<option value="">Выберите регион</option>');
 
-  } catch (e) {
-    $('#results').html(`
-      <tr>
-        <td colspan="7" class="text-center text-danger">
-          Ошибка загрузки данных
-        </td>
-      </tr>
-    `);
-  }
-}
-
-/* ---------- TABLE RENDER ---------- */
-
-function renderTable() {
-  const tbody = $('#results');
-  tbody.empty();
-
-  if (!allResults.length) {
-    tbody.append(`
-      <tr>
-        <td colspan="7" class="text-center text-muted">
-          Ничего не найдено
-        </td>
-      </tr>
-    `);
-    updatePagination();
-    return;
+    data.forEach(r => {
+      region.append(`<option value="${r.id}">${r.name}</option>`);
+    });
   }
 
-  const start = (currentPage - 1) * pageSize;
-  const end = start + pageSize;
-  const pageItems = allResults.slice(start, end);
+  $('#region_id').on('change', async function () {
+    const regionId = $(this).val();
 
-  pageItems.forEach((row, index) => {
-    const rowNumber = start + index + 1;
+    const district = $('#district_id');
+    const locality = $('#locality_id');
 
-    tbody.append(`
-      <tr>
-        <td class="text-muted">${rowNumber}</td>
-        <td>${row.institution}</td>
-        <td>${row.region || ''}</td>
-        <td>${row.specialty}</td>
-        <td>${row.language}</td>
-        <td>${row.price === null ? 'Бюджет' : row.price}</td>
-        <td>${row.plan_count}</td>
-      </tr>
-    `);
+    district.prop('disabled', true).html('<option>Загрузка...</option>');
+    locality.prop('disabled', true).html('<option>Сначала выберите район</option>');
+
+    if (!regionId) return;
+
+    const res = await fetch(`${API}/meta/districts?region_id=${regionId}`);
+    const data = await res.json();
+
+    district.html('<option value="">Выберите район</option>');
+    data.forEach(d => {
+      district.append(`<option value="${d.id}">${d.name}</option>`);
+    });
+
+    district.prop('disabled', false);
   });
 
-  updatePagination();
-}
+  $('#district_id').on('change', async function () {
+    const districtId = $(this).val();
+    const locality = $('#locality_id');
 
-/* ---------- PAGINATION ---------- */
+    locality.prop('disabled', true).html('<option>Загрузка...</option>');
 
-function updatePagination() {
-  const totalPages = Math.ceil(allResults.length / pageSize) || 1;
+    if (!districtId) return;
 
-  $('#pageInfo').text(`Страница ${currentPage} из ${totalPages}`);
-  $('#prevPage').prop('disabled', currentPage <= 1);
-  $('#nextPage').prop('disabled', currentPage >= totalPages);
-}
+    const res = await fetch(`${API}/meta/localities?district_id=${districtId}`);
+    const data = await res.json();
 
-$('#prevPage').on('click', () => {
-  if (currentPage > 1) {
-    currentPage--;
-    renderTable();
+    locality.html('<option value="">Выберите населённый пункт</option>');
+    data.forEach(l => {
+      locality.append(`<option value="${l.id}">${l.name}</option>`);
+    });
+
+    locality.prop('disabled', false);
+  });
+
+  /* ---------- SEARCH ---------- */
+
+  async function search() {
+    const params = new URLSearchParams();
+
+    const language = $('#language').val().trim();
+    const specialty = $('#specialty').val().trim();
+    const regionId = $('#region_id').val();
+    const districtId = $('#district_id').val();
+    const localityId = $('#locality_id').val();
+    const budget = $('#budget').val();
+    const sort = $('#sort').val();
+    const order = $('#order').val();
+
+    if (sort) params.append('sort', sort);
+    if (order) params.append('order', order);
+    if (language) params.append('language', language);
+    if (specialty) params.append('specialty', specialty);
+    if (regionId) params.append('region_id', regionId);
+    if (districtId) params.append('district_id', districtId);
+    if (localityId) params.append('locality_id', localityId);
+    if (budget) params.append('budget', budget);
+
+    $('#results').html(`
+      <tr>
+        <td colspan="7" class="text-center">
+          <i class="fas fa-spinner fa-spin mr-1"></i> Поиск...
+        </td>
+      </tr>
+    `);
+
+    try {
+      const res = await fetch(`${API}/search/?${params.toString()}`);
+      const data = await res.json();
+
+      allResults = data;
+      currentPage = 1;
+      renderTable();
+      startDialog(data);
+
+    } catch (e) {
+      $('#results').html(`
+        <tr>
+          <td colspan="7" class="text-center text-danger">
+            Ошибка загрузки данных
+          </td>
+        </tr>
+      `);
+    }
   }
-});
 
-$('#nextPage').on('click', () => {
-  const totalPages = Math.ceil(allResults.length / pageSize);
-  if (currentPage < totalPages) {
-    currentPage++;
-    renderTable();
+  /* ---------- TABLE RENDER ---------- */
+
+  function renderTable() {
+    const tbody = $('#results');
+    tbody.empty();
+
+    if (!allResults.length) {
+      tbody.append(`
+        <tr>
+          <td colspan="7" class="text-center text-muted">
+            Ничего не найдено
+          </td>
+        </tr>
+      `);
+      updatePagination();
+      return;
+    }
+
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const pageItems = allResults.slice(start, end);
+
+    pageItems.forEach((row, index) => {
+      const rowNumber = start + index + 1;
+
+      tbody.append(`
+        <tr>
+          <td class="text-muted">${rowNumber}</td>
+          <td>${row.institution}</td>
+          <td>${row.region || ''}</td>
+          <td>${row.specialty}</td>
+          <td>${row.language}</td>
+          <td>${row.price === null ? 'Бюджет' : row.price}</td>
+          <td>${row.plan_count}</td>
+        </tr>
+      `);
+    });
+
+    updatePagination();
   }
-});
+
+  /* ---------- PAGINATION ---------- */
+
+  function updatePagination() {
+    const totalPages = Math.ceil(allResults.length / pageSize) || 1;
+
+    $('#pageInfo').text(`Страница ${currentPage} из ${totalPages}`);
+    $('#prevPage').prop('disabled', currentPage <= 1);
+    $('#nextPage').prop('disabled', currentPage >= totalPages);
+  }
+
+  $('#prevPage').on('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderTable();
+    }
+  });
+
+  $('#nextPage').on('click', () => {
+    const totalPages = Math.ceil(allResults.length / pageSize);
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderTable();
+    }
+  });
+</script>
+
+<script>
+    const AI_API = 'http://127.0.0.1:8000/ai/dialog';
+
+    let lastResults = [];
+
+    /* Вызываем после успешного поиска */
+    function startDialog(results) {
+      lastResults = results;
+      $('#ai-dialog-card').show();
+      $('#ai-messages').html('');
+      $('#ai-options').html('');
+      callDialog({});
+    }
+
+    /* Основной вызов диалога */
+    async function callDialog(payload) {
+      const res = await fetch(AI_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (data.type === 'question') {
+        renderQuestion(data);
+      }
+
+      if (data.type === 'final') {
+        renderFinal(data.text);
+      }
+    }
+
+    /* Рендер вопроса */
+    function renderQuestion(data) {
+      $('#ai-messages').append(`
+        <div class="ai-message">
+          <strong>ИИ:</strong> ${data.text}
+        </div>
+      `);
+
+      const options = $('#ai-options');
+      options.html('');
+
+      data.options.forEach(opt => {
+        options.append(`
+          <button
+            class="btn btn-outline-primary ai-option"
+            onclick="answerDialog('${data.key}', '${opt.value}')">
+            ${opt.label}
+          </button>
+        `);
+      });
+    }
+
+    /* Ответ пользователя */
+    function answerDialog(key, value) {
+      $('#ai-messages').append(`
+        <div class="ai-message text-right">
+          <strong>Вы:</strong> ${value}
+        </div>
+      `);
+
+      $('#ai-options').html('');
+
+      callDialog({
+        answer: { [key]: value },
+        results: lastResults
+      });
+    }
+
+    /* Финальный ответ */
+    function renderFinal(text) {
+      $('#ai-messages').append(`
+        <div class="ai-message bg-light">
+          <strong>ИИ:</strong><br>${text.replace(/\n/g, '<br>')}
+        </div>
+      `);
+    }
 </script>
 
 </body>
