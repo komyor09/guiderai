@@ -2,6 +2,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
 
+from services.llm import explain_results
+
 router = APIRouter(prefix="/ai", tags=["AI"])
 
 
@@ -16,41 +18,20 @@ class SearchResult(BaseModel):
 
 class ExplainRequest(BaseModel):
     results: List[SearchResult]
-    user_goal: Optional[str] = None  # например: "бюджет", "престиж", "рядом с домом"
+    user_goal: Optional[str] = None
 
 
 @router.post("/explain")
 def explain_search(data: ExplainRequest):
-    """
-    Пока без реального LLM — заглушка.
-    На следующем шаге подключим модель.
-    """
-
     if not data.results:
         return {
-            "text": "По заданным параметрам подходящих вариантов не найдено. "
-                    "Попробуйте изменить регион, язык или тип обучения."
+            "text": "По заданным параметрам ничего не найдено. "
+                    "Попробуйте изменить фильтры."
         }
 
-    top = data.results[:3]
-
-    explanation = (
-        f"Я подобрал {len(data.results)} вариантов обучения. "
-        f"Обратите внимание на следующие направления:\n\n"
+    text = explain_results(
+        results=[r.dict() for r in data.results],
+        user_goal=data.user_goal,
     )
 
-    for r in top:
-        explanation += (
-            f"• {r.specialty} в {r.institution} ({r.region}) — "
-            f"{'бюджет' if r.price is None else f'стоимость {r.price}'} сомони, "
-            f"{r.plan_count} мест.\n"
-        )
-
-    explanation += (
-        "\nЕсли хочешь, я могу:\n"
-        "— сравнить эти варианты между собой;\n"
-        "— подобрать самый бюджетный;\n"
-        "— найти вариант ближе к дому."
-    )
-
-    return {"text": explanation}
+    return {"text": text}
