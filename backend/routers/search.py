@@ -13,6 +13,8 @@ from models.region import Region
 from models.district import District
 from models.locality import Locality
 
+from models.search_log import SearchLog
+
 router = APIRouter(prefix="/search", tags=["Search"])
 
 
@@ -105,8 +107,22 @@ def search(
             column.asc() if order == "asc" else column.desc()
         )
 
-    results = query.limit(limit).all()
-    return [dict(r._mapping) for r in results]
+    # LOGGING
+    log = SearchLog(
+        language=language,
+        specialty=specialty,
+        budget=budget,
 
-    results = query.limit(20).all()
+        region_id=region_id,
+        district_id=district_id,
+        locality_id=locality_id,
+
+        sort=sort,
+        order=order,
+    )
+
+    db.add(log)
+    db.commit()
+
+    results = query.limit(limit).all()
     return [dict(r._mapping) for r in results]
